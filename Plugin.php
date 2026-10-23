@@ -20,7 +20,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) {
  *
  * @package MGSeo
  * @author 明关
- * @version 1.1.0
+ * @version 1.1.1
  * @link https://blog.mghub.top
  * @license MIT
  */
@@ -49,6 +49,8 @@ class Plugin implements PluginInterface
     {
         // 爬虫日志表（兼容 MySQL / PostgreSQL / SQLite）
         self::createLogsTable();
+        // 为存量库补建 time 索引（新库已在 DDL 中创建，重复执行幂等）
+        self::ensureLogsIndexes();
 
         Helper::addRoute('mg_sitemap', '/sitemap.xml', Sitemap::class, 'render');
         Helper::addRoute('mg_robots', '/robots.txt', Robots::class, 'render');
@@ -201,7 +203,8 @@ class Plugin implements PluginInterface
                 `path` varchar(500) DEFAULT NULL,
                 `ip` varchar(64) DEFAULT NULL,
                 `time` int(10) unsigned DEFAULT '0',
-                PRIMARY KEY (`id`)
+                PRIMARY KEY (`id`),
+                KEY `time` (`time`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
         } elseif (false !== strpos($adapter, 'Pgsql')) {
             $sql = "CREATE TABLE IF NOT EXISTS \"{$name}\" (
@@ -226,5 +229,33 @@ class Plugin implements PluginInterface
         }
 
         $db->query($sql, Db::WRITE);
+    }
+
+    /**
+     * 为日志表 time 字段补建索引，供按时间清理与时间范围查询使用。
+     *
+     * PostgreSQL / SQLite 支持 CREATE INDEX IF NOT EXISTS；
+     * MySQL 不支持该语法，重复建索引时会抛异常，捕获即可（幂等）。
+     *
+     * @throws \Typecho\Plugin\Exception
+     */
+    private static function ensureLogsIndexes()
+    {
+        $db = Db::get();
+        $name = $db->getPrefix() . 'mgseo_logs';
+        $adapter = $db->getAdapterName();
+
+        try {
+            if (false !== strpos($adapter, 'Pgsql') || false !== strpos($adapter, 'SQLite')) {
+                $db->query(
+                    "CREATE INDEX IF NOT EXISTS \"{$name}_time\" ON \"{$name}\" (\"time\")",
+                    Db::WRITE
+                );
+            } elseif (false !== strpos($adapter, 'Mysql')) {
+                $db->query("ALTER TABLE `{$name}` ADD INDEX `time` (`time`)", Db::WRITE);
+            }
+        } catch (\Throwable $e) {
+            // 索引已存在（含新库 DDL 已创建的情况）时不阻断插件启用
+        }
     }
 }
