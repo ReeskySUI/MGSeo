@@ -1,5 +1,7 @@
 # MGSeo
 
+> **仓库已迁移**：本项目已并入 MGHUB Typecho 合集仓库 [MGBlogSuite](https://github.com/ReeskySUI/MGBlogSuite)，后续更新仅在合集仓库发布。本仓库自 v1.1.1 起归档只读，历史版本与发布包继续保留。
+
 一个 Typecho 插件搞定三件 SEO 刚需：
 
 1. **动态站点地图**：`/sitemap.xml` 实时生成，包含首页、文章、独立页面、分类、标签，发布新内容自动更新；
